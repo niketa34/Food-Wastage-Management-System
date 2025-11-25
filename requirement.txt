@@ -2,3 +2,5 @@ pandas
 ipykernel
 pymysql
 streamlit
+matplotlib.pyplot
+seaborn 
