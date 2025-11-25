@@ -67,24 +67,76 @@ elif page == "View Tables":
 
     # ------------------ Page: Search ------------------
 elif page == "Search":
+
     st.header("🔍 Search Records")
-
-    table_choice = st.selectbox("Select a table to search",
-                                ["claims_data", "food_listings_data", "providers_data", "receivers_data"])
-
-    try:
-        query = f"SELECT * FROM {table_choice}"
-        df = pd.read_sql(query, connection)
-
-        st.markdown("### Select columns to display")
-        selected_columns = st.multiselect("Choose columns", options=df.columns.tolist(), default=df.columns.tolist())
-
-        if selected_columns:
-            st.dataframe(df[selected_columns])
+    table_choice = st.selectbox("Select a table to search",["food_listings_data", "providers_data", "receivers_data", "claims_data"])
+    
+    if table_choice == "food_listings_data":
+        st.subheader("Search Food Listings")
+        search_by = st.selectbox("Search by", ["Food_ID", "Food_Name", "Provider_Type", "Location", "Food_Type"])
+        if search_by == "Food_ID":
+            food_id = st.text_input("Enter Food_ID")
+            if st.button("Proceed"):
+                query = f"SELECT * FROM food_listings_data WHERE Food_ID = '{food_id}'"
+                df = pd.read_sql(query, connection)
+                st.dataframe(df if not df.empty else pd.DataFrame(["Enter a valid Food_ID"], columns=["Message"]))
         else:
-            st.info("Please select one or more columns to view details.")
-    except Exception as e:
-        st.error(f"Error loading data: {e}")    
+                options = pd.read_sql(f"SELECT DISTINCT {search_by} FROM food_listings_data", connection)[search_by].dropna().tolist()
+                selected = st.selectbox(f"Choose {search_by}", options)
+                query = f"SELECT * FROM food_listings_data WHERE {search_by} = '{selected}'"
+                df = pd.read_sql(query, connection)
+                st.dataframe(df)
+
+    elif table_choice == "providers_data":
+        st.subheader("Search Providers")
+        search_by = st.selectbox("Search by", ["Provider_ID", "Type"])
+        if search_by == "Provider_ID":
+            pid = st.text_input("Enter Provider_ID")
+            if st.button("Proceed"):
+                query = f"SELECT * FROM providers_data WHERE Provider_ID = '{pid}'"
+                df = pd.read_sql(query, connection)
+                st.dataframe(df if not df.empty else pd.DataFrame(["Enter a valid Provider_ID"], columns=["Message"]))
+        else:
+                types = pd.read_sql("SELECT DISTINCT Type FROM providers_data", connection)["Type"].dropna().tolist()
+                selected = st.multiselect("Choose Provider Type", types)
+                if selected:
+                    placeholders = ', '.join([f"'{t}'" for t in selected])
+                    query = f"SELECT * FROM providers_data WHERE Type IN ({placeholders})"
+                    df = pd.read_sql(query, connection)
+                    st.dataframe(df)
+                
+    elif table_choice == "receivers_data":
+            st.subheader("Search Receivers")
+            search_by = st.selectbox("Search by", ["Receiver_ID", "Type"])
+            if search_by == "Receiver_ID":
+                rid = st.text_input("Enter Receiver_ID")
+                if st.button("Proceed"):
+                    query = f"SELECT * FROM receivers_data WHERE Receiver_ID = '{rid}'"
+                    df = pd.read_sql(query, connection)
+                    st.dataframe(df if not df.empty else pd.DataFrame(["Enter a valid Receiver_ID"], columns=["Message"]))
+            else:
+                types = pd.read_sql("SELECT DISTINCT Type FROM receivers_data", connection)["Type"].dropna().tolist()
+                selected = st.multiselect("Choose Receiver Type", types)
+                if selected:
+                    placeholders = ', '.join([f"'{t}'" for t in selected])
+                    query = f"SELECT * FROM receivers_data WHERE Type IN ({placeholders})"
+                    df = pd.read_sql(query, connection)
+                    st.dataframe(df)
+                    
+    elif table_choice == "claims_data":
+        st.subheader("Search Claims")
+        search_by = st.selectbox("Search by", ["Claim_ID", "Status", "Timestamp"])
+        if search_by == "Claim_ID":
+            cid = st.text_input("Enter Claim_ID")
+            if st.button("Proceed"):
+                query = f"SELECT * FROM claims_data WHERE Claim_ID = '{cid}'"
+                df = pd.read_sql(query, connection)
+                st.dataframe(df if not df.empty else pd.DataFrame(["Enter a valid Claim_ID"], columns=["Message"]))
+        elif search_by == "Status":
+            status = st.radio("Choose claims Status", ["Pending", "Cancelled", "Completed"])
+            query = f"SELECT * FROM claims_data WHERE Status = '{status}'"
+            df = pd.read_sql(query, connection)
+            st.dataframe(df)
 
             # ------------------ Page: CRUD Operation ------------------
 elif page == "CRUD Operation":
@@ -344,8 +396,8 @@ elif page == "SQL Query & Visualization":
                                 WHERE rank_val = 1
                                 ORDER BY Receiver_ID;""",
 
-        query_options[4]: """select sum(l.Quantity) as total_provider_qty from food_listings_data l
-                                join providers_data p on p.Provider_ID=l.Provider_ID order by total_provider_qty""",
+        query_options[4]: """select sum(l.Quantity) as total_food_qty from food_listings_data l
+                                join providers_data p on p.Provider_ID=l.Provider_ID order by total_food_qty""",
 
         query_options[5]: """SELECT Location, foodlist_count
                              FROM (
@@ -431,7 +483,8 @@ elif page == "SQL Query & Visualization":
 elif page == "extra SQL Query":
     st.header("✏️ extra SQL Query")
 
-    query_options = ["1. Which food items are most frequently claimed before their expiry date?","2. Which cities have the highest ratio of claims to listings?","3.  What is the distribution of food types claimed by receiver type?","4.  What is the distribution percentages of food types claimed by each receiver type?","5. which receiver type have highest receivers?"  
+    query_options = ["1. Which food items are most frequently claimed before their expiry date?","2. Which cities have the highest ratio of claims to listings?","3.  What is the distribution of food types claimed by receiver type?","4. What is the distribution percentages of food types claimed by each receiver type?","5. which receiver type have highest receivers?",
+                     "6. Which city have heighest number of food claims", "7. location wise number of food list and claims made"  
                      ]
 
     selected_query = st.selectbox("Select a SQL Analysis", query_options)
@@ -458,7 +511,11 @@ elif page == "extra SQL Query":
                              JOIN receivers_data r ON c.Receiver_ID = r.Receiver_ID
                              GROUP BY r.Type, fl.Food_Type ORDER BY r.Type, Percentage_Within_Receiver DESC;""",
 
-                query_options[4]: """SELECT r.Type, COUNT(r.Receiver_ID) AS Receiver_count FROM receivers_data r GROUP BY r.Type ORDER BY Receiver_count DESC LIMIT 1;"""
+                query_options[4]: """SELECT r.Type, COUNT(r.Receiver_ID) AS Receiver_count FROM receivers_data r GROUP BY r.Type ORDER BY Receiver_count DESC LIMIT 1;""",
+
+                query_options[5]: """ SELECT city, claim_count FROM ( SELECT r.city, COUNT(c.Claim_ID) AS claim_count, RANK() OVER (ORDER BY COUNT(c.Claim_ID) DESC) AS rk FROM receivers_data r INNER JOIN claims_data c ON c.Receiver_ID = r.Receiver_ID GROUP BY r.city) AS ranked WHERE rk = 1;""",
+
+                query_options[6]: """ select l.location, count(l.Food_ID) as food_listing_count, count(c.Claim_ID) claim_count FROM food_listings_data l left join claims_data c on c.Food_ID= l.Food_ID GROUP BY l.Location order by food_listing_count desc """
     }
         # Run selected query
     if selected_query in queries:
